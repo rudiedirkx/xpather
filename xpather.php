@@ -1,6 +1,6 @@
 <?php
 
-if ( empty($_FILES['xml']) || !($xml = file_get_contents($_FILES['xml']['tmp_name'])) ) {
+if ( empty($_FILES['xml']['tmp_name']) || !($xml = file_get_contents($_FILES['xml']['tmp_name'])) ) {
 	?>
 	<style>
 	table {
@@ -40,33 +40,56 @@ if ( empty($_FILES['xml']) || !($xml = file_get_contents($_FILES['xml']['tmp_nam
 					<th>Type</th>
 				</tr>
 				<tr>
-					<td><input name="columns[]" value="date" /></td>
-					<td><input name="types[]" value="date" /></td>
+					<td><input name="columns[0]" value="date" /></td>
+					<td><input name="types[0]" value="date" /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[]" value="title" /></td>
-					<td><input name="types[]" value="" /></td>
+					<td><input name="columns[1]" value="title" /></td>
+					<td><input name="types[1]" value="" /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[]" value="text" /></td>
-					<td><input name="types[]" value="" /></td>
+					<td><input name="columns[2]" value="text" /></td>
+					<td><input name="types[2]" value="" /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[]" value="location_uid" /></td>
-					<td><input name="types[]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../address' /></td>
+					<td><input name="columns[3]" value="location_uid" /></td>
+					<td><input name="types[3]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../address' /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[]" value="location_uid" /></td>
-					<td><input name="types[]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../lat' /></td>
+					<td><input name="columns[4]" value="location_uid" /></td>
+					<td><input name="types[4]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../lat' /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[]" value="location_uid" /></td>
-					<td><input name="types[]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../long' /></td>
+					<td><input name="columns[5]" value="location_uid" /></td>
+					<td><input name="types[5]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../long' /></td>
 				</tr>
 			</table>
 		</p>
 		<button>Parse &amp; format</button>
+		<button onclick="localStorage.xpatherValues = ''; location.reload(); return false">Really reset</button>
 	</form>
+
+	<script>
+	document.querySelector('form').addEventListener('change', function(e) {
+		var values = [];
+		[].forEach.call(this.elements, function(el, i) {
+			if (el.name) {
+				values.push([el.name, el.value]);
+			}
+		});
+		localStorage.xpatherValues = JSON.stringify(values);
+	});
+
+	if (localStorage.xpatherValues) {
+		var values = JSON.parse(localStorage.xpatherValues);
+		values.forEach(function(value) {
+			var el = document.querySelector('input[name="' + value[0] + '"]');
+			if (el) {
+				el.value = value[1];
+			}
+		});
+	}
+	</script>
 	<?php
 	exit;
 }
