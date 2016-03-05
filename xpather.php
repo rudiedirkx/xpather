@@ -5,14 +5,16 @@ if ( empty($_FILES['xml']['tmp_name']) || !($xml = file_get_contents($_FILES['xm
 	<style>
 	table {
 		border-collapse: collapse;
+		width: 100%;
 	}
 	td, th {
 		border: solid 1px #aaa;
 		padding: 6px;
 		background-color: #eee;
 	}
-	input {
-		width: 30em;
+	input, textarea {
+		box-sizing: border-box;
+		width: 100%;
 	}
 	</style>
 
@@ -36,37 +38,80 @@ if ( empty($_FILES['xml']['tmp_name']) || !($xml = file_get_contents($_FILES['xm
 			Columns:<br>
 			<table>
 				<tr>
+					<th>Name</th>
 					<th>Selector</th>
+					<th>Subselector</th>
 					<th>Type</th>
 				</tr>
 				<tr>
-					<td><input name="columns[0]" value="date" /></td>
-					<td><input name="types[0]" value="date" /></td>
+					<td><input name="column[0][name]" value="date" /></td>
+					<td><input name="column[0][selector]" value="date" /></td>
+					<td><input name="column[0][subselector]" value="" /></td>
+					<td><input name="column[0][type]" value="date" /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[1]" value="title" /></td>
-					<td><input name="types[1]" value="" /></td>
+					<td><input name="column[1][name]" value="subject" /></td>
+					<td><input name="column[1][selector]" value="title" /></td>
+					<td><input name="column[1][subselector]" value="" /></td>
+					<td><input name="column[1][type]" value="text" /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[2]" value="text" /></td>
-					<td><input name="types[2]" value="" /></td>
+					<td><input name="column[2][name]" value="body" /></td>
+					<td><input name="column[2][selector]" value="text" /></td>
+					<td><input name="column[2][subselector]" value="" /></td>
+					<td><input name="column[2][type]" value="text" /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[3]" value="location_uid" /></td>
-					<td><input name="types[3]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../address' /></td>
+					<td><input name="column[3][name]" value="location_name" /></td>
+					<td><input name="column[3][selector]" value="location_uid" /></td>
+					<td><input name="column[3][subselector]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../address' /></td>
+					<td><input name="column[3][type]" value="text" /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[4]" value="location_uid" /></td>
-					<td><input name="types[4]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../lat' /></td>
+					<td><input name="column[4][name]" value="location_lat" /></td>
+					<td><input name="column[4][selector]" value="location_uid" /></td>
+					<td><input name="column[4][subselector]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../lat'  /></td>
+					<td><input name="column[4][type]" value="" /></td>
 				</tr>
 				<tr>
-					<td><input name="columns[5]" value="location_uid" /></td>
-					<td><input name="types[5]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../long' /></td>
+					<td><input name="column[5][name]" value="location_lon" /></td>
+					<td><input name="column[5][selector]" value="location_uid" /></td>
+					<td><input name="column[5][subselector]" value='table[@name="diaro_locations"]/r/uid[text()="VALUE"]/../long' /></td>
+					<td><input name="column[5][type]" value="" /></td>
 				</tr>
 			</table>
 		</p>
-		<button>Parse &amp; format</button>
-		<button onclick="localStorage.xpatherValues = ''; location.reload(); return false">Really reset</button>
+
+		<p>
+			Header template:<br>
+			<table>
+				<tr>
+					<th>Template</th>
+				</tr>
+				<tr>
+					<td><textarea name="head">date,subject,body,location,coord</textarea></td>
+				</tr>
+			</table>
+		</p>
+
+		<p>
+			Content template:<br>
+			<table>
+				<tr>
+					<th>Template</th>
+					<th>Encoding</th>
+				</tr>
+				<tr>
+					<td width="75%"><textarea name="content"><?= htmlspecialchars('"<date>","<subject>","<body>","<location_name>","<location_lat>,<location_lon>"') ?></textarea></td>
+					<td width="25%"><select><option selected>csv<option>html</select></td>
+				</tr>
+			</table>
+		</p>
+
+		<p>
+			<button>Parse &amp; format</button>
+			<button onclick="localStorage.xpatherValues = ''; location.reload(); return false">Really reset</button>
+		</p>
 	</form>
 
 	<script>
@@ -85,7 +130,10 @@ if ( empty($_FILES['xml']['tmp_name']) || !($xml = file_get_contents($_FILES['xm
 		values.forEach(function(value) {
 			var el = document.querySelector('input[name="' + value[0] + '"]');
 			if (el) {
-				el.value = value[1];
+				try {
+					el.value = value[1];
+				}
+				catch (ex) {}
 			}
 		});
 	}
@@ -96,23 +144,41 @@ if ( empty($_FILES['xml']['tmp_name']) || !($xml = file_get_contents($_FILES['xm
 
 header('Content-type: text/plain; charset=utf-8');
 
-$row = trim($_POST['row']);
-$columns = array_filter(array_map('trim', $_POST['columns']));
-$types = array_filter(array_map('trim', $_POST['types']));
+$cfg_columns = array_filter($_POST['column'], function($column) {
+	return !empty($column['selector']);
+});
 
+// De-namespace
+$xml = str_replace(' xmlns=', ' abc=', $xml);
+$xml = preg_replace('#(<\/?)\w+:(\w+)#', '$1$2', $xml);
+
+// Find rows
 $xml = simplexml_load_string($xml);
+$source_rows = $xml->xpath($_POST['row']);
 
-$rows = $xml->xpath($_POST['row']);
+// For every row, find columns
+$rows = array();
+foreach ($source_rows as $source_row) {
+	$row = array();
+	foreach ($cfg_columns as $column) {
+		$column = array_map('trim', $column);
 
-foreach ($rows as $row) {
-	foreach ($columns as $i => $column) {
-		$type = (string) @$types[$i];
-
-		$matches = $row->xpath($column);
+		// Find value
+		$matches = $source_row->xpath($column['selector']);
 		$node = $matches[0];
 		$value = trim((string) $node);
 
-		switch ($type) {
+		// Find real value via subselector
+		if ($column['subselector']) {
+			$selector = str_replace('VALUE', $value, $column['subselector']);
+			$matches2 = $xml->xpath($selector);
+			if ($matches2) {
+				$value = trim((string) $matches2[0]);
+			}
+		}
+
+		// Convert/cast to type
+		switch ($column['type']) {
 			case '':
 			case 'text':
 				break;
@@ -126,18 +192,24 @@ foreach ($rows as $row) {
 				$value = date('Y-m-d H:i:s', $utc);
 				break;
 
-			default:
-				$selector = str_replace('VALUE', $value, $type);
-				$matches2 = $xml->xpath($selector);
-				if ($matches2) {
-					$value = trim((string) $matches2[0]);
-				}
+			case 'float':
+				$value = (float) $value;
+				break;
+
+			case 'int':
+				$value = (int) $value;
 				break;
 		}
 
-		echo "======\n";
-		echo $value . "\n";
+		$row[ $column['name'] ] = $value;
+
+		// echo "======\n";
+		// echo $value . "\n";
 	}
 
-	echo "======\n\n\n\n\n\n\n";
+	$rows[] = $row;
+
+	// echo "======\n\n\n\n\n\n\n";
 }
+
+print_r($rows);
